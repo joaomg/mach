@@ -2,5 +2,7 @@ nimcache/
 nimblecache/
 htmldocs/
 coverage/
+.vscode/
+mach.code-workspace
 *.exe
 *.dll
