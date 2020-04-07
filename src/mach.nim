@@ -10,6 +10,7 @@ import parsecfg # handle CFG (config) files
 import strutils # string basic functions
 import json # parse json
 import std/sha1 # Nim md5 implementation
+import times # Nim date/time module
 
 const defaultConfig = "/../config/dev_localhost.cfg"
 
@@ -20,6 +21,7 @@ type
     ## Mach server API
     Api* = object
         conn*: DbConn
+        home: string
 
     ## Mach tenant
     ## identified by name and handled internally in Mach by id and hash
@@ -43,6 +45,27 @@ proc echoAndRaiseException(userMsg: string, e: typedesc) =
     let ex = getCurrentException()
     echo userMsg, "; ", ex.name, ": ", exMsg
     raise newException(e, userMsg)
+
+proc createFsHome*(api:Api, server_fs_home: string):bool =
+    ## Create file system home if it doesn't exit    
+
+    # create mach instance home directory
+    os.createDir(server_fs_home)
+
+    # return if home directory exists
+    return os.existsDir(server_fs_home)
+
+proc setFsHome*(api: Api, server_fs_home: string):Api =
+    ## Define the instance file system home
+    
+    var changedApi: Api = api
+    changedApi.home = server_fs_home
+    return changedApi
+
+proc getFsHome*(api: Api):string =
+    ## Returns the instance file system home
+    
+    return api.home
 
 proc getTenants*(api: Api): seq[Tenant] {.raises: [ApiError].} =
     ## Return all tenant
@@ -108,9 +131,15 @@ proc createTenant*(api: Api, name: string): uint {.raises: [ApiError].} =
         let hash: SecureHash = secureHash(name)
         api.conn.exec(sql"INSERT INTO tenant (name, hash) VALUES (?, ?)", name, hash)
         let id: uint = api.conn.getRow(sql"SELECT LAST_INSERT_ID()")[0].parseUInt
+
+        let 
+            instanceHome = api.getFsHome()            
+            tenantHome = os.joinPath(instanceHome, ($hash)[0..3])
+        os.createDir(tenantHome)
+
         return id
 
-    except DbError, ValueError:
+    except DbError, ValueError, IOError, OSError:
         echoAndRaiseException("Error creating tenant", ApiError)
 
 proc deleteTenant*(api: Api, id: uint): bool =
@@ -143,6 +172,24 @@ proc updateTenant*(api: Api, id: uint16, name: string): bool =
     except DbError:
         echoException("Error updating tenant")
 
+        return false
+
+proc saveFileInTenant*(api: Api, tenant: Tenant, source: string, bundle: string = ""): bool =
+    ## Place file in tenant file system home
+    ## Optionally inside a bundle sub-directory    
+
+    let 
+        instanceHome = api.getFsHome()
+        tenantHome = os.joinPath(instanceHome, tenant.hash[0..3])
+        fileName = os.extractFilename(source)        
+        destination = os.joinPath(tenantHome, bundle, fileName)
+        
+    try: 
+        os.createDir(os.joinPath(tenantHome, bundle))
+        os.moveFile(source, destination)
+        return true
+    except OSError:
+        echoException("Error moving file to tenant")
         return false
 
 var api: Api
@@ -233,8 +280,40 @@ router web:
 
     # UPLOAD file to tenant
     post "/tenant/@name/upload":
-        resp(Http200, $(%*{"msg": "file(s) upload to " & @"name"})
-        , contentType = "application/json")
+        ## Handles multipart POST request
+        ## Stores the tenant files
+
+        var fileCount: int = 0                                                      # number of handled files
+        let bundle: string = $secureHash(@"name" & "," & $times.getTime().toUnix)   # used to pack files together for ETL tasks\jobs
+        let tmpDir: string = os.joinPath(api.getFsHome, bundle)                     # create a temporary directory and place uploaded files there
+        
+        try:
+            let tenant = api.getTenant(@"name")
+
+            os.createDir(tmpDir)   
+
+            for name, value in request.formData.pairs:
+                if name == "files":
+                    let fileName = value.fields["filename"]                    
+
+                    let tmpFile = os.joinPath(tmpDir, fileName)                    
+                    writeFile(tmpFile, value.body)
+                    discard api.saveFileInTenant(tenant, tmpFile, bundle)
+
+                    inc fileCount
+
+            os.removeDir(tmpDir)
+
+        except ApiError as e:
+
+            os.removeDir(tmpDir)
+
+            resp(Http404, $(%*{"msg": e.msg}),
+                contentType = "application/json")        
+
+        resp(Http200, $(%*{"msg": "Received " & $fileCount & " files"}), 
+                contentType = "application/json")
+
 
 proc main() =
 
@@ -243,8 +322,9 @@ proc main() =
     if paramCount() > 0:
         # param
         let paramFile = paramStr(1)
-        echo paramFile
         dict = loadConfig(paramFile)
+        echo "Using configuration ", paramFile
+
     else:
         # load default configuration file:
         dict = loadConfig(getAppDir() & defaultConfig)
@@ -257,10 +337,15 @@ proc main() =
         db_schema = dict.getSectionValue("Database", "schema")
         server_url = dict.getSectionValue("Server", "url")
         server_port = dict.getSectionValue("Server", "port").parseUInt.Port
+        server_fs_home = dict.getSectionValue("Server", "home")
 
     # api
     conn = db_mysql.open(db_connection, db_user, db_password, db_schema)
     api = Api(conn: conn)
+
+    # create the instance file system home
+    discard api.createFsHome(server_fs_home)
+    api = api.setFsHome(server_fs_home)
 
     # web
     let settings = newSettings(bindAddr = server_url, port = server_port)

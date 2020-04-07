@@ -7,12 +7,15 @@ cd c:\joaomg\mach
 ### run tests
 nimble test
 
+### build mach
+nimble build
+
 #### create mach user and schema
 mysql -hlocalhost -P3306 -uroot -ppandora -e"source 0_mach_user.sql;"
 mysql -hlocalhost -P3306 -umach_test -pmach_test123 mach_test -e"source 1_mach_schema.sql;"
 
-#### start mach jester server in port 5100 (compile c and run -r)
-nim c -r .\server.nim 5100
+#### start mach jester server using development configuration
+nimble run mach .\config\dev_localhost.cfg
 
 #### get Jerry tenant details
 curl localhost:5100/tenant/Jerry
@@ -27,7 +30,7 @@ curl localhost:5100/tenant/2
 curl -X PUT -H "Content-Type: application/json" -d "{\"id\":2, \"name\":\"Jerry\"}" localhost:5100/tenant/2
 
 #### upload files to tenant jerry
-curl -X POST -F files=@c:\tmp\1.txt -F files=@c:\tmp\2.txt localhost:5100/tenant/jerry/upload
+curl -X POST -F files=@tests/1.txt -F files=@tests/2.txt localhost:5100/tenant/jerry/upload
 
 #### delete tenant 1
 curl -X DELETE localhost:5100/tenant/1

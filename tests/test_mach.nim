@@ -26,10 +26,14 @@ suite "March server Api test suite":
         db_schema = dict.getSectionValue("Database", "schema")
         # server_url = dict.getSectionValue("Server", "url")
         # server_port = dict.getSectionValue("Server", "port").parseUInt.Port
+        server_fs_home = dict.getSectionValue("Server", "home")
 
     # api
     var conn: DbConn = db_mysql.open(db_connection, db_user, db_password, db_schema)
     var api = Api(conn: conn)
+
+    # remove home directory prior to test
+    os.removeDir(server_fs_home)
 
     setup:
       # run before each test
@@ -38,7 +42,12 @@ suite "March server Api test suite":
     teardown:
       # run after each test
       discard
-    
+
+    test "create and set home directory":
+      check api.createFsHome(server_fs_home) == true      
+      api = api.setFsHome(server_fs_home)      
+      check api.getFsHome() == server_fs_home      
+
     test "no tenants":
       let tenants = api.getTenants()
       check tenants.len == 0
@@ -56,12 +65,22 @@ suite "March server Api test suite":
         let jerry = api.getTenant("Jerry")
         check jerry.name == "Jerry"
 
+    test "save file in Jerry":
+        let jerry = api.getTenant("Jerry")
+        os.copyFile("./tests/abc.txt", "./tests/abc_jerry.txt")
+        check api.saveFileInTenant(jerry, "./tests/abc_jerry.txt", "bundle1") == true
+
     test "delete Jerry":
         check api.deleteTenant(1) == true
 
     test "no tenants after delete":
       let tenants = api.getTenants()
-      check tenants.len == 0
+      check tenants.len == 0    
 
     echo "Teardown Api test suite"
+
+    # close the api database connection
     api.conn.close()
+    
+    # remove home directory after tests
+    os.removeDir(server_fs_home)    
