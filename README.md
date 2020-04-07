@@ -4,6 +4,9 @@ A MACHine originated data processing system
 #### go to mach server development home directory
 cd c:\joaomg\mach
 
+### install depedencies
+nimble install --depsOnly
+
 ### run tests
 nimble test
 
@@ -11,8 +14,8 @@ nimble test
 nimble build
 
 #### create mach user and schema
-mysql -hlocalhost -P3306 -uroot -ppandora -e"source 0_mach_user.sql;"
-mysql -hlocalhost -P3306 -umach_test -pmach_test123 mach_test -e"source 1_mach_schema.sql;"
+mysql -hlocalhost -P3306 -uroot -ppandora -e"source config/0_mach_user.sql;"
+mysql -hlocalhost -P3306 -umach_dev -pmach_dev123 mach_dev -e"source config/1_mach_schema.sql;"
 
 #### start mach jester server using development configuration
 nimble run mach .\config\dev_localhost.cfg

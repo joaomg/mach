@@ -1,5 +1,3 @@
-# start jester server in port 5100
-# nim c -r .\server.nim 5100
 import asyncdispatch
 
 import jester # jester webserver
@@ -9,8 +7,10 @@ import os # arguments parsing
 import parsecfg # handle CFG (config) files
 import strutils # string basic functions
 import json # parse json
-import std/sha1 # Nim md5 implementation
 import times # Nim date/time module
+import random
+
+import machpkg/auth
 
 const defaultConfig = "/../config/dev_localhost.cfg"
 
@@ -30,6 +30,7 @@ type
         id*: uint16
         name*: string
         hash*: string
+        hashShort*: string
 
 proc echoException(userMsg: string) =
     ## Outputs user and exception messages
@@ -128,13 +129,13 @@ proc createTenant*(api: Api, name: string): uint {.raises: [ApiError].} =
     ## returns tenant id
 
     try:
-        let hash: SecureHash = secureHash(name)
+        let hash = auth.makeSha256Hash(name)
         api.conn.exec(sql"INSERT INTO tenant (name, hash) VALUES (?, ?)", name, hash)
         let id: uint = api.conn.getRow(sql"SELECT LAST_INSERT_ID()")[0].parseUInt
 
         let 
             instanceHome = api.getFsHome()            
-            tenantHome = os.joinPath(instanceHome, ($hash)[0..3])
+            tenantHome = os.joinPath(instanceHome, (hash)[0..3])
         os.createDir(tenantHome)
 
         return id
@@ -283,9 +284,9 @@ router web:
         ## Handles multipart POST request
         ## Stores the tenant files
 
-        var fileCount: int = 0                                                      # number of handled files
-        let bundle: string = $secureHash(@"name" & "," & $times.getTime().toUnix)   # used to pack files together for ETL tasks\jobs
-        let tmpDir: string = os.joinPath(api.getFsHome, bundle)                     # create a temporary directory and place uploaded files there
+        var fileCount: int = 0                                      # number of handled files
+        let bundle: string = makeSha256Hash(@"name")                # used to pack files together for ETL tasks\jobs
+        let tmpDir: string = os.joinPath(api.getFsHome, bundle)     # create a temporary directory and place uploaded files there
         
         try:
             let tenant = api.getTenant(@"name")
@@ -295,7 +296,6 @@ router web:
             for name, value in request.formData.pairs:
                 if name == "files":
                     let fileName = value.fields["filename"]                    
-
                     let tmpFile = os.joinPath(tmpDir, fileName)                    
                     writeFile(tmpFile, value.body)
                     discard api.saveFileInTenant(tenant, tmpFile, bundle)
@@ -338,6 +338,14 @@ proc main() =
         server_url = dict.getSectionValue("Server", "url")
         server_port = dict.getSectionValue("Server", "port").parseUInt.Port
         server_fs_home = dict.getSectionValue("Server", "home")
+        server_randomize = dict.getSectionValue("Server", "randomize").parseBool
+
+    # do a random.randomize call
+    if server_randomize:
+        let seed: int64 = times.getTime().toUnix    
+        random.randomize(seed)
+
+    echo random.rand(225)
 
     # api
     conn = db_mysql.open(db_connection, db_user, db_password, db_schema)

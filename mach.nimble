@@ -12,6 +12,7 @@ bin           = @["mach"]
 
 requires "nim >= 1.0.6"
 requires "jester >= 0.4.3"
+requires "hmac >= 0.1.9"
 
 # Tasks
 

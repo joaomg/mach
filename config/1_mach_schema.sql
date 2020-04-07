@@ -1,11 +1,11 @@
 -- drop schema if it exists 
-drop schema if exists mach_test;
+drop schema if exists mach_dev;
 
 -- create empty schema
-create schema mach_test;
+create schema mach_dev;
 
 -- move session to schema
-use mach_test;
+use mach_dev;
 
 -- create schema tables
 drop table if exists tenant;

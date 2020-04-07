@@ -1,5 +1,6 @@
 # Copyright (C) 2020 João Marques Gomes
 import os
+import strutils
 import parsecfg
 import unittest
 import db_mysql
@@ -27,6 +28,10 @@ suite "March server Api test suite":
         # server_url = dict.getSectionValue("Server", "url")
         # server_port = dict.getSectionValue("Server", "port").parseUInt.Port
         server_fs_home = dict.getSectionValue("Server", "home")
+        server_randomize = dict.getSectionValue("Server", "randomize").parseBool
+
+    # randomize must be off for testing
+    check server_randomize == false
 
     # api
     var conn: DbConn = db_mysql.open(db_connection, db_user, db_password, db_schema)
@@ -75,7 +80,7 @@ suite "March server Api test suite":
 
     test "no tenants after delete":
       let tenants = api.getTenants()
-      check tenants.len == 0    
+      check tenants.len == 0
 
     echo "Teardown Api test suite"
 
