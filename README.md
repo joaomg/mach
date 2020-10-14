@@ -3,24 +3,26 @@ A MACHine for data processing
 
 
 
-#### go to mach server development home directory
+#### Go to mach server development home directory
 cd c:\joaomg\mach
 
-### install depedencies
+### Install depedencies
 nimble install --depsOnly
 
-### run tests
+### Run tests
 nimble test
 
-### build mach
+### Build mach
 nimble build
 
-#### create mach user and schema
+#### Create mach user and schema
 mysql -hlocalhost -P3306 -uroot -ppandora -e"source config/0_mach_user.sql;"
 mysql -hlocalhost -P3306 -umach_dev -pmach_dev123 mach_dev -e"source config/1_mach_schema.sql;"
 
-#### start mach jester server using development configuration
+#### Start mach jester server using development configuration
 nimble run mach config/dev_localhost.cfg
+
+### Use the API/webservice with curl 
 
 #### get Jerry tenant details
 curl localhost:5100/tenant/Jerry
