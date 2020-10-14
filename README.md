@@ -5,6 +5,7 @@ MACHine for data processing
 
 ### Clone mach and enter directory
 git clone https://github.com/joaomg/mach.git
+
 cd mach
 
 ### Install depedencies
@@ -18,6 +19,7 @@ nimble build
 
 #### Create mach user and schema
 mysql -hlocalhost -P3306 -uroot -ppandora -e"source config/0_mach_user.sql;"
+
 mysql -hlocalhost -P3306 -umach_dev -pmach_dev123 mach_dev -e"source config/1_mach_schema.sql;"
 
 #### Start mach jester server using development configuration
@@ -52,6 +54,8 @@ To build and run current nim file press F6 (using the Nim 0.6.6 extension)
 
 ### Windows 10 Powershell tips
 Remove the Powershell alias to curl. 
+
 By default the curl command in Powershell is redirected to Invoke-WebRequest. Which has completely different sintax from curl.
+
 Deleting the alias enables us to use the original curl command (if installed and set in PATH) from Powershell. 
 https://superuser.com/questions/883914/how-do-i-permanently-remove-a-default-powershell-alias
