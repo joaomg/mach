@@ -1,5 +1,5 @@
 # mach
-A MACHine for data processing
+MACHine for data processing
 
 
 
