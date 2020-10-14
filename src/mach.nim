@@ -9,6 +9,7 @@ import strutils # string basic functions
 import json # parse json
 import times # Nim date/time module
 import random
+import re
 
 import machpkg/auth
 
@@ -203,7 +204,7 @@ router web:
 
     # GET return tenant
     get "/tenant/@id":
-        cond @"id".isDigit
+        cond re.match(@"id", re"\d*")
 
         try:
             let tenant = api.getTenant(uint16(@"id".parseUInt))
@@ -242,7 +243,7 @@ router web:
 
     # DELETE a tenant
     delete "/tenant/@id":
-        cond @"id".isDigit
+        cond re.match(@"id", re"\d*")
 
         let id: uint = @"id".parseUInt
 
@@ -260,7 +261,7 @@ router web:
 
     # PUT update tenant details
     put "/tenant/@id":
-        cond @"id".isDigit
+        cond re.match(@"id", re"\d*")
 
         let
             payload: JsonNode = request.body.parseJson

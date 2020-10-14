@@ -1,6 +1,8 @@
 # mach
 A MACHine originated data processing system
 
+
+
 #### go to mach server development home directory
 cd c:\joaomg\mach
 
@@ -18,7 +20,7 @@ mysql -hlocalhost -P3306 -uroot -ppandora -e"source config/0_mach_user.sql;"
 mysql -hlocalhost -P3306 -umach_dev -pmach_dev123 mach_dev -e"source config/1_mach_schema.sql;"
 
 #### start mach jester server using development configuration
-nimble run mach .\config\dev_localhost.cfg
+nimble run mach config/dev_localhost.cfg
 
 #### get Jerry tenant details
 curl localhost:5100/tenant/Jerry
@@ -39,8 +41,11 @@ curl -X POST -F files=@tests/1.txt -F files=@tests/2.txt localhost:5100/tenant/j
 curl -X DELETE localhost:5100/tenant/1
 
 
+
 ### Visual Studio Code tips
-To build and run current nim file press F6 (using the Nim 0.6.4 extension)
+To build and run current nim file press F6 (using the Nim 0.6.6 extension)
+
+
 
 ### Windows 10 Powershell tips
 Remove the Powershell alias to curl. 

@@ -4,3 +4,5 @@ htmldocs/
 coverage/
 *.exe
 *.nims
+tests/test_mach
+mach

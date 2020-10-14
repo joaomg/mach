@@ -7,7 +7,7 @@ import db_mysql
 
 import mach
 
-const testConfig = "./test_localhost.cfg"
+const testConfig = "/test_localhost.cfg"
 
 suite "March server Api test suite":
     echo "Setup Api test suite"
