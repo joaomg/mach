@@ -17,7 +17,7 @@ const defaultConfig = "/../config/dev_localhost.cfg"
 
 type
     ## General mach server Api error
-    ApiError* = object of Exception
+    ApiError* = object of CatchableError
 
     ## Mach server API
     Api* = object
@@ -204,7 +204,7 @@ router web:
 
     # GET return tenant
     get "/tenant/@id":
-        cond re.match(@"id", re"\d*")
+        cond re.match(@"id", re"^\d+$")
 
         try:
             let tenant = api.getTenant(uint16(@"id".parseUInt))
@@ -214,9 +214,12 @@ router web:
         except ApiError as e:
             resp(Http404, $(%*{"msg": e.msg}),
                 contentType = "application/json")
+        
 
     # GET return tenant
     get "/tenant/@name":
+        cond re.match(@"name", re"^\S+$")
+
         try:
             let tenant = api.getTenant(@"name")
             resp(Http200, $(%*tenant),
@@ -237,13 +240,13 @@ router web:
             resp(Http200, $(%*{"msg": "Tenant created", "id": id}),
                     contentType = "application/json")
 
-        except ApiError as e:
+        except ApiError:
             resp(Http500, $(%*{"msg": "Error creating tenant"}),
                     contentType = "application/json")
 
     # DELETE a tenant
     delete "/tenant/@id":
-        cond re.match(@"id", re"\d*")
+        cond re.match(@"id", re"^\d+$")
 
         let id: uint = @"id".parseUInt
 
@@ -260,8 +263,8 @@ router web:
                     contentType = "application/json")
 
     # PUT update tenant details
-    put "/tenant/@id":
-        cond re.match(@"id", re"\d*")
+    put "/tenant/@id":        
+        cond re.match(@"id", re"^\d+$")
 
         let
             payload: JsonNode = request.body.parseJson
@@ -284,6 +287,8 @@ router web:
     post "/tenant/@name/upload":
         ## Handles multipart POST request
         ## Stores the tenant files
+
+        cond re.match(@"name", re"^\S+$")
 
         var fileCount: int = 0                                      # number of handled files
         let bundle: string = makeSha256Hash(@"name")                # used to pack files together for ETL tasks\jobs
