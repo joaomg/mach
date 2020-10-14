@@ -1,5 +1,5 @@
 # mach
-A MACHine originated data processing system
+A MACHine for data processing
 
 
 
