@@ -3,8 +3,9 @@ MACHine for data processing
 
 
 
-#### Go to mach server development home directory
-cd c:\joaomg\mach
+### Clone mach and enter directory
+git clone https://github.com/joaomg/mach.git
+cd mach
 
 ### Install depedencies
 nimble install --depsOnly
