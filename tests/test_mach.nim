@@ -9,7 +9,7 @@ import mach
 
 const testConfig = "/test_localhost.cfg"
 
-suite "March server Api test suite":
+suite "Mach server Api test suite":
     echo "Setup Api test suite"
 
     # reset the test schema

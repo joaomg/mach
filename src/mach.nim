@@ -13,7 +13,7 @@ import re
 
 import machpkg/auth
 
-const defaultConfig = "/../config/dev_localhost.cfg"
+const defaultConfig = "/config/dev_localhost.cfg"
 
 type
     ## General mach server Api error
@@ -325,9 +325,10 @@ proc main() =
 
     # configuration
     var dict: Config
-    if paramCount() > 0:
+    if paramCount() > 0:        
         # param
         let paramFile = paramStr(1)
+        echo "Fetching configuration from ", paramFile        
         dict = loadConfig(paramFile)
         echo "Using configuration ", paramFile
 
@@ -349,9 +350,7 @@ proc main() =
     # do a random.randomize call
     if server_randomize:
         let seed: int64 = times.getTime().toUnix    
-        random.randomize(seed)
-
-    echo random.rand(225)
+        random.randomize(seed)    
 
     # api
     conn = db_mysql.open(db_connection, db_user, db_password, db_schema)

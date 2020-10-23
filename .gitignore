@@ -6,3 +6,4 @@ coverage/
 *.nims
 tests/test_mach
 mach
+tests/test_mach_web
