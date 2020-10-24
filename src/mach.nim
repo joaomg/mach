@@ -198,9 +198,22 @@ var api: Api
 var conn: DbConn
 
 router web:
+    
     # GET ping the service
     get "/":
         resp "It's alive!"
+
+    # GET return tenant
+    get "/tenant":
+        
+        try:
+            let tenants = api.getTenants()
+            resp(Http200, $(%*tenants),
+                contentType = "application/json")
+
+        except ApiError as e:
+            resp(Http404, $(%*{"msg": e.msg}),
+                contentType = "application/json")
 
     # GET return tenant
     get "/tenant/@id":
@@ -215,7 +228,6 @@ router web:
             resp(Http404, $(%*{"msg": e.msg}),
                 contentType = "application/json")
         
-
     # GET return tenant
     get "/tenant/@name":
         cond re.match(@"name", re"^\S+$")

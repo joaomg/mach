@@ -51,7 +51,7 @@ proc startServer(file: string, useStdLib: bool) {.async.} =
     var client = newAsyncHttpClient()
     styledEcho(fgBlue, "Getting ", address)
     let fut = client.get(address)
-    yield fut or sleepAsync(000)
+    yield fut or sleepAsync(3000)
     if not fut.finished:
       styledEcho(fgYellow, "Timed out")
     elif not fut.failed:
@@ -73,6 +73,11 @@ proc testTenant(useStdLib: bool) =
     test "can get march root":      
       let resp = waitFor client.get(address)
       check resp.code == Http200
+
+    test "get all tenants":      
+      let resp = waitFor client.get(address & "/tenant")
+      check resp.code == Http200
+      check (waitFor resp.body) == """[]"""
 
     test "tenant Jerry doesn't exit":
       let resp = waitFor client.get(address & "/tenant/Jerry")

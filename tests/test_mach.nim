@@ -70,6 +70,15 @@ suite "Mach server Api test suite":
         let jerry = api.getTenant("Jerry")
         check jerry.name == "Jerry"
 
+    test "create tenant Salgari":
+        let salgari_id = api.createTenant("Salgari")
+        check salgari_id == 2
+
+    test "get all tenants":
+        let tenants = api.getTenants()
+        check tenants.len == 2
+        # check tenants == @[(id: 1, name: "Jerry", hash: "78c0d59690c1b54578d63439464334651de7cd739ff5ef6a32f19947ed9fad9b", hashShort: ""), (id: 2, name: "Salgari", hash: "c80dcaa56b4359f554c8b6b6602b0ea3ebacf4bf7b6cd7827baaf4754113d1c6", hashShort: "")]
+
     test "save file in Jerry":
         let jerry = api.getTenant("Jerry")
         os.copyFile("./tests/abc.txt", "./tests/abc_jerry.txt")
@@ -77,6 +86,9 @@ suite "Mach server Api test suite":
 
     test "delete Jerry":
         check api.deleteTenant(1) == true
+
+    test "delete Salgari":
+        check api.deleteTenant(2) == true
 
     test "no tenants after delete":
       let tenants = api.getTenants()
