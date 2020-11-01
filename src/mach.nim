@@ -208,8 +208,10 @@ router web:
         
         try:
             let tenants = api.getTenants()
-            resp(Http200, $(%*tenants),
-                contentType = "application/json")
+            resp(Http200, headers={"Access-Control-Allow-Origin":"http://localhost:3000", "Content-Type": "application/json"}
+            , $(%*tenants))
+            #resp(Http200, headers=[{"Access-Control-Allow-Origin":"*"}], $(%*tenants),
+            #    contentType = "application/json")
 
         except ApiError as e:
             resp(Http404, $(%*{"msg": e.msg}),
