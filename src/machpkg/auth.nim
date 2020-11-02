@@ -1,5 +1,6 @@
 # https://github.com/nim-lang/nimforum/blob/master/src/auth.nim
 
+import strutils
 import random, md5
 import hmac
 
@@ -40,10 +41,15 @@ proc makeSessionKey*(): string =
 
   return toHex(hmac.hmac_sha256(random1, random2))
 
-proc makeSha256Hash*(value: string): string =
+proc makeSha256Hash*(value: string, mySalt: string = ""): string =
     ## Create a hash, using sha256, combining salt and value
+    ## Use mySalt if provided as parameter, otherwise makeSalt
 
-    let salt = makeSalt()    
+    let salt = if isEmptyOrWhitespace(mySalt):
+            makeSalt()
+        else:
+            mySalt
+
     return toHex(hmac.hmac_sha256(salt, value))
 
 when isMainModule:

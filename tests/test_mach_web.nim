@@ -6,11 +6,12 @@ import asynctools
 import terminal
 import strutils
 import os
+import json # parse json
 from osproc import execCmd
 
 const
   srcServer = "src/mach.nim"
-  port = 5100
+  port = 5200
   address = "http://localhost:" & $port
   
 var serverProcess: AsyncProcess
@@ -84,6 +85,62 @@ proc testTenant(useStdLib: bool) =
       check resp.code == Http404
       check (waitFor resp.body) == """{"msg":"Tenant not found"}"""
 
+    test "create tenant Tom":      
+      let resp = waitFor client.post(address & "/tenant", """{"name": "Tom"}""")
+      check resp.code == Http200
+      let data: JsonNode = (waitFor resp.body).parseJson
+      check data["msg"].getStr == "Tenant created"
+
+    test "create tenant Jerry":      
+      let resp = waitFor client.post(address & "/tenant", """{"name": "Jerry"}""")
+      check resp.code == Http200
+      let data: JsonNode = (waitFor resp.body).parseJson
+      check data["msg"].getStr == "Tenant created"
+
+    test "create tenant Calvin":      
+      let resp = waitFor client.post(address & "/tenant", """{"name": "Calvin"}""")
+      check resp.code == Http200
+      let data = (waitFor resp.body).parseJson
+      check data["msg"].getStr == "Tenant created"
+
+    test "create tenant Hobbes":      
+      let resp = waitFor client.post(address & "/tenant", """{"name": "Hobbes"}""")
+      check resp.code == Http200
+      let data = (waitFor resp.body).parseJson
+      check data["msg"].getStr == "Tenant created"
+
+    test "we have four tenants":      
+      let resp = waitFor client.get(address & "/tenant")
+      check resp.code == Http200
+      let data = (waitFor resp.body).parseJson
+      check data.len == 4
+
+      check pretty(data) == """[
+  {
+    "id": 3,
+    "name": "Tom",
+    "hash": "6ef4e23ae042e266714df9e60a5c49414b96a45267577ef2c0b1b1ec811185cd",
+    "hashShort": ""
+  },
+  {
+    "id": 4,
+    "name": "Jerry",
+    "hash": "34e977b29a5ea97f4d05b08842c38fbda2b60b5a288ce876e8ec0f204604ee2e",
+    "hashShort": ""
+  },
+  {
+    "id": 5,
+    "name": "Calvin",
+    "hash": "d03b620caaca8b7867ba9a630f8decc411bf90e69b62d6309210d090b2405981",
+    "hashShort": ""
+  },
+  {
+    "id": 6,
+    "name": "Hobbes",
+    "hash": "50cd46e8abe16f3b7e8945aa6c139f746e505bcacdea9fcee8be9127c3f0b343",
+    "hashShort": ""
+  }
+]"""
 
 when isMainModule:
   try:

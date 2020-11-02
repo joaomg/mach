@@ -23,6 +23,7 @@ type
     Api* = object
         conn*: DbConn
         home: string
+        salt*: string
 
     ## Mach tenant
     ## identified by name and handled internally in Mach by id and hash
@@ -130,7 +131,8 @@ proc createTenant*(api: Api, name: string): uint {.raises: [ApiError].} =
     ## returns tenant id
 
     try:
-        let hash = auth.makeSha256Hash(name)
+        
+        let hash = auth.makeSha256Hash(name, api.salt)        
         api.conn.exec(sql"INSERT INTO tenant (name, hash) VALUES (?, ?)", name, hash)
         let id: uint = api.conn.getRow(sql"SELECT LAST_INSERT_ID()")[0].parseUInt
 
@@ -361,14 +363,15 @@ proc main() =
         server_fs_home = dict.getSectionValue("Server", "home")
         server_randomize = dict.getSectionValue("Server", "randomize").parseBool
 
-    # do a random.randomize call
-    if server_randomize:
-        let seed: int64 = times.getTime().toUnix    
-        random.randomize(seed)    
+    # create salt
+    let webSalt = if server_randomize:
+            auth.makeSalt()
+        else:
+            "fixedSaltForTesting"
 
     # api
-    conn = db_mysql.open(db_connection, db_user, db_password, db_schema)
-    api = Api(conn: conn)
+    conn = db_mysql.open(db_connection, db_user, db_password, db_schema)    
+    api = Api(conn: conn, salt: webSalt)
 
     # create the instance file system home
     discard api.createFsHome(server_fs_home)
