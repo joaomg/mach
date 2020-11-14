@@ -45,7 +45,8 @@ curl -X POST -F files=@tests/1.txt -F files=@tests/2.txt localhost:5100/tenant/j
 #### delete tenant 1
 curl -X DELETE localhost:5100/tenant/1
 
-
+#### if the corsDomain parameter is set the Origin Header must defined accordingly
+curl -H "Origin: http://localhost:3000" localhost:5100/tenant
 
 ### Visual Studio Code tips
 To build and run current nim file press F6 (using the Nim 0.6.6 extension)

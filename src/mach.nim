@@ -8,7 +8,6 @@ import parsecfg # handle CFG (config) files
 import strutils # string basic functions
 import json # parse json
 import times # Nim date/time module
-import random
 import re
 
 import machpkg/auth
@@ -24,6 +23,7 @@ type
         conn*: DbConn
         home: string
         salt*: string
+        corsDomain*: string
 
     ## Mach tenant
     ## identified by name and handled internally in Mach by id and hash
@@ -196,60 +196,89 @@ proc saveFileInTenant*(api: Api, tenant: Tenant, source: string, bundle: string 
         echoException("Error moving file to tenant")
         return false
 
+proc isOriginValid*(api: Api, headers: HttpHeaders): bool =
+    # Check if the HTTP Origin is valid under the CORS domain setting
+
+    let corsDomain: string = api.corsDomain
+
+    # if the we accept requests from anywhere, *, all origins are valid
+    if corsDomain == "*":
+        return true
+
+    # otherwise we need to check the HTTP request origin 
+    # if it exists and it's equal to the configured corsDomain
+    # then the origin is valid
+    if headers.hasKey("origin"):
+        if corsDomain == headers["origin"]:
+            return true
+
+    # if we reach this point the origin is not valid
+    return false
+
 var api: Api
 var conn: DbConn
 
-router web:
-    
+router web:    
+
     # GET ping the service
     get "/":
         resp "It's alive!"
 
-    # GET return tenant
+    # GET return all tenants
     get "/tenant":
         
         try:
             let tenants = api.getTenants()
-            resp(Http200, headers={"Access-Control-Allow-Origin":"http://localhost:3000", "Content-Type": "application/json"}
+            resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
             , $(%*tenants))
-            #resp(Http200, headers=[{"Access-Control-Allow-Origin":"*"}], $(%*tenants),
-            #    contentType = "application/json")
 
         except ApiError as e:
-            resp(Http404, $(%*{"msg": e.msg}),
-                contentType = "application/json")
+            resp(Http404, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+            , $(%*{"msg": e.msg}))
 
     # GET return tenant
     get "/tenant/@id":
         cond re.match(@"id", re"^\d+$")
 
+        if not(api.isOriginValid(request.headers)):
+            resp(Http403, headers={"Content-Type": "application/json"}
+            , $(%*{"msg": "Invalid origin!"}))
+
         try:
             let tenant = api.getTenant(uint16(@"id".parseUInt))
-            resp(Http200, $(%*tenant),
-                contentType = "application/json")
+            resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+            , $(%*tenant))
 
         except ApiError as e:
-            resp(Http404, $(%*{"msg": e.msg}),
-                contentType = "application/json")
+            resp(Http404, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+            , $(%*{"msg": e.msg}))
         
     # GET return tenant
     get "/tenant/@name":
         cond re.match(@"name", re"^\S+$")
 
+        if not(api.isOriginValid(request.headers)):
+            resp(Http403, headers={"Content-Type": "application/json"}
+            , $(%*{"msg": "Invalid origin!"}))
+
         try:
             let tenant = api.getTenant(@"name")
-            resp(Http200, $(%*tenant),
-                contentType = "application/json")
+            resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+            , $(%*tenant))
 
         except ApiError as e:
-            resp(Http404, $(%*{"msg": e.msg}),
-                contentType = "application/json")
+            resp(Http404, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+            , $(%*{"msg": e.msg}))
 
     # POST create new tenant
     post "/tenant":
         let
             payload: JsonNode = request.body.parseJson
             name: string = payload["name"].getStr
+
+        if not(api.isOriginValid(request.headers)):
+            resp(Http403, headers={"Content-Type": "application/json"}
+            , $(%*{"msg": "Invalid origin!"}))
 
         try:
             let id = api.createTenant(name)
@@ -260,9 +289,19 @@ router web:
             resp(Http500, $(%*{"msg": "Error creating tenant"}),
                     contentType = "application/json")
 
+    # OPTIONS 
+    options "/tenant/@id":
+        cond re.match(@"id", re"^\d+$")
+        
+        resp(Http200, headers={"Access-Control-Allow-Origin": "*", "Content-Type": "application/json"}, "")
+
     # DELETE a tenant
     delete "/tenant/@id":
         cond re.match(@"id", re"^\d+$")
+
+        if not(api.isOriginValid(request.headers)):
+            resp(Http403, headers={"Content-Type": "application/json"}
+            , $(%*{"msg": "Invalid origin!"}))
 
         let id: uint = @"id".parseUInt
 
@@ -279,8 +318,12 @@ router web:
                     contentType = "application/json")
 
     # PUT update tenant details
-    put "/tenant/@id":        
+    put "/tenant/@id":
         cond re.match(@"id", re"^\d+$")
+
+        if not(api.isOriginValid(request.headers)):
+            resp(Http403, headers={"Content-Type": "application/json"}
+            , $(%*{"msg": "Invalid origin!"}))
 
         let
             payload: JsonNode = request.body.parseJson
@@ -289,20 +332,27 @@ router web:
 
         try:
             if api.updateTenant(id, name):
-                resp(Http200, $(%*{"msg": "Tenant updated"})
-                , contentType = "application/json")
+                resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+                , $(%*{"msg": "Tenant updated"}))
             else:
-                resp(Http404, $(%*{"msg": "Tenant not found or nothing to update"})
-                , contentType = "application/json")
+                resp(Http404, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+                , $(%*{"msg": "Tenant not found or nothing to update"}))
+                
 
         except ApiError:
             resp(Http500, $(%*{"msg": "Error updating tenant"})
             , contentType = "application/json")
+            resp(Http500, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+                , $(%*{"msg": "Error updating tenant"}))
 
     # UPLOAD file to tenant
     post "/tenant/@name/upload":
         ## Handles multipart POST request
         ## Stores the tenant files
+
+        if not(api.isOriginValid(request.headers)):
+            resp(Http403, headers={"Content-Type": "application/json"}
+            , $(%*{"msg": "Invalid origin!"}))
 
         cond re.match(@"name", re"^\S+$")
 
@@ -362,6 +412,7 @@ proc main() =
         server_port = dict.getSectionValue("Server", "port").parseUInt.Port
         server_fs_home = dict.getSectionValue("Server", "home")
         server_randomize = dict.getSectionValue("Server", "randomize").parseBool
+        server_corsDomain = dict.getSectionValue("Server", "corsDomain")        
 
     # create salt
     let webSalt = if server_randomize:
@@ -371,14 +422,14 @@ proc main() =
 
     # api
     conn = db_mysql.open(db_connection, db_user, db_password, db_schema)    
-    api = Api(conn: conn, salt: webSalt)
+    api = Api(conn: conn, salt: webSalt, corsDomain: server_corsDomain)
 
     # create the instance file system home
     discard api.createFsHome(server_fs_home)
     api = api.setFsHome(server_fs_home)
 
     # web
-    let settings = newSettings(bindAddr = server_url, port = server_port)
+    let settings = newSettings(bindAddr = server_url, port = server_port)    
     var jester = initJester(web, settings)
 
     jester.serve()
