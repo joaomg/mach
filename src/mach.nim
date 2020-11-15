@@ -20,10 +20,17 @@ type
 
     ## Mach server API
     Api* = object
-        conn*: DbConn
+        dbParameters*: DbParameters
         home: string
         salt*: string
         corsDomain*: string
+
+    ## Mach server DbConn parameters
+    DbParameters* = object
+        connection*: string
+        user*: string
+        password*: string
+        schema*: string
 
     ## Mach tenant
     ## identified by name and handled internally in Mach by id and hash
@@ -70,11 +77,19 @@ proc getFsHome*(api: Api):string =
     
     return api.home
 
+proc getConn*(api: Api): DbConn {.raises: [DbError, ValueError].} =
+
+    return db_mysql.open(api.dbParameters.connection
+        , api.dbParameters.user
+        , api.dbParameters.password
+        , api.dbParameters.schema)
+
 proc getTenants*(api: Api): seq[Tenant] {.raises: [ApiError].} =
     ## Return all tenant
 
     try:
-        let rows = api.conn.getAllRows(sql"SELECT id, name, hash FROM tenant")
+        let conn = api.getConn()
+        let rows = conn.getAllRows(sql"SELECT id, name, hash FROM tenant")
 
         var tenants: seq[Tenant] = @[]
         for row in rows:
@@ -84,17 +99,19 @@ proc getTenants*(api: Api): seq[Tenant] {.raises: [ApiError].} =
                 , hash: row[2])            
 
             tenants.add(tenant)
-            
+        
+        conn.close()
         return tenants
 
     except DbError, ValueError:
-        echoAndRaiseException("Error getting tenants", ApiError)
+        echoAndRaiseException("Error getting tenants", ApiError)    
 
 proc getTenant*(api: Api, id: uint16): Tenant {.raises: [ApiError].} =
     ## Return tenant by id
 
     try:
-        let row = api.conn.getRow(sql"SELECT id, name, hash FROM tenant where id = ?", id)
+        let conn = api.getConn()
+        let row = conn.getRow(sql"SELECT id, name, hash FROM tenant where id = ?", id)
 
         if row[0] == "":
             raise newException(ApiError, "Tenant not found")
@@ -112,7 +129,9 @@ proc getTenant*(api: Api, name: string): Tenant {.raises: [ApiError].} =
     ## Return tenant by name
 
     try:
-        let row = api.conn.getRow(sql"SELECT id, name, hash FROM tenant where name = ?", name)
+        let conn = api.getConn()
+        let row = conn.getRow(sql"SELECT id, name, hash FROM tenant where name = ?", name)
+        conn.close()
 
         if row[0] == "":
             raise newException(ApiError, "Tenant not found")
@@ -121,8 +140,10 @@ proc getTenant*(api: Api, name: string): Tenant {.raises: [ApiError].} =
                 id: uint16(row[0].parseUInt)
                 , name: row[1]
                 , hash: row[2])
+                
             return(tenant)
 
+                
     except DbError, ValueError:
         echoAndRaiseException("Error getting tenant", ApiError)
 
@@ -132,15 +153,17 @@ proc createTenant*(api: Api, name: string): uint {.raises: [ApiError].} =
 
     try:
         
+        let conn = api.getConn()
         let hash = auth.makeSha256Hash(name, api.salt)        
-        api.conn.exec(sql"INSERT INTO tenant (name, hash) VALUES (?, ?)", name, hash)
-        let id: uint = api.conn.getRow(sql"SELECT LAST_INSERT_ID()")[0].parseUInt
+        conn.exec(sql"INSERT INTO tenant (name, hash) VALUES (?, ?)", name, hash)
+        let id: uint = conn.getRow(sql"SELECT LAST_INSERT_ID()")[0].parseUInt
 
         let 
             instanceHome = api.getFsHome()            
             tenantHome = os.joinPath(instanceHome, (hash)[0..3])
         os.createDir(tenantHome)
 
+        conn.close()
         return id
 
     except DbError, ValueError, IOError, OSError:
@@ -153,9 +176,11 @@ proc deleteTenant*(api: Api, id: uint): bool =
     ## returns true if tenant was successfully deleted and false otherwise
 
     try:
-        let affectedRows = api.conn.execAffectedRows(
+        let conn = api.getConn()
+        let affectedRows = conn.execAffectedRows(
                 sql"DELETE FROM tenant WHERE id = ?", id)
 
+        conn.close()
         return affectedRows > 0
 
     except DbError:
@@ -168,9 +193,11 @@ proc updateTenant*(api: Api, id: uint16, name: string): bool =
     ## returns true if tenant was successfully updated and false otherwise
 
     try:
-        let affectedRows = api.conn.execAffectedRows(sql"UPDATE tenant SET name = ? WHERE id = ?"
+        let conn = api.getConn()
+        let affectedRows = conn.execAffectedRows(sql"UPDATE tenant SET name = ? WHERE id = ?"
         , name, id)
 
+        conn.close()
         return affectedRows > 0
 
     except DbError:
@@ -216,7 +243,6 @@ proc isOriginValid*(api: Api, headers: HttpHeaders): bool =
     return false
 
 var api: Api
-var conn: DbConn
 
 router web:    
 
@@ -289,12 +315,6 @@ router web:
             resp(Http500, $(%*{"msg": "Error creating tenant"}),
                     contentType = "application/json")
 
-    # OPTIONS 
-    options "/tenant/@id":
-        cond re.match(@"id", re"^\d+$")
-        
-        resp(Http200, headers={"Access-Control-Allow-Origin": "*", "Content-Type": "application/json"}, "")
-
     # DELETE a tenant
     delete "/tenant/@id":
         cond re.match(@"id", re"^\d+$")
@@ -316,6 +336,12 @@ router web:
         except ApiError:
             resp(Http500, $(%*{"msg": "Error deleting tenant"}),
                     contentType = "application/json")
+
+    # OPTIONS 
+    options "/tenant/@id":
+        cond re.match(@"id", re"^\d+$")
+                
+        resp(Http204, headers={"Access-Control-Allow-Origin": api.corsDomain, "Access-Control-Allow-Methods": "PUT", "Access-Control-Allow-Headers": "content-type"}, "")
 
     # PUT update tenant details
     put "/tenant/@id":
@@ -414,15 +440,21 @@ proc main() =
         server_randomize = dict.getSectionValue("Server", "randomize").parseBool
         server_corsDomain = dict.getSectionValue("Server", "corsDomain")        
 
+    # db 
+    let dbPars: DbParameters = DbParameters(
+        connection: db_connection
+        , user: db_user
+        , password: db_password
+        , schema: db_schema)
+
     # create salt
     let webSalt = if server_randomize:
             auth.makeSalt()
         else:
             "fixedSaltForTesting"
 
-    # api
-    conn = db_mysql.open(db_connection, db_user, db_password, db_schema)    
-    api = Api(conn: conn, salt: webSalt, corsDomain: server_corsDomain)
+    # api    
+    api = Api(dbParameters: dbPars, salt: webSalt, corsDomain: server_corsDomain)
 
     # create the instance file system home
     discard api.createFsHome(server_fs_home)

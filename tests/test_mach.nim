@@ -33,9 +33,9 @@ suite "Mach server Api test suite":
     # randomize must be off for testing
     check server_randomize == false
 
-    # api
-    var conn: DbConn = db_mysql.open(db_connection, db_user, db_password, db_schema)
-    var api = Api(conn: conn)
+    # api    
+    let dbPars: DbParameters = DbParameters(connection: db_connection, user: db_user, password: db_password, schema: db_schema)
+    var api = Api(dbParameters: dbPars)
 
     # remove home directory prior to test
     os.removeDir(server_fs_home)
@@ -94,10 +94,7 @@ suite "Mach server Api test suite":
       let tenants = api.getTenants()
       check tenants.len == 0
 
-    echo "Teardown Api test suite"
-
-    # close the api database connection
-    api.conn.close()
+    echo "Teardown Api test suite"    
     
     # remove home directory after tests
     os.removeDir(server_fs_home)    
