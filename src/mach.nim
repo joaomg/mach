@@ -296,6 +296,11 @@ router web:
             resp(Http404, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
             , $(%*{"msg": e.msg}))
 
+   # OPTIONS 
+    options "/tenant":
+                       
+        resp(Http204, headers={"Access-Control-Allow-Origin": api.corsDomain, "Access-Control-Allow-Methods": "POST", "Access-Control-Allow-Headers": "content-type"}, "")
+
     # POST create new tenant
     post "/tenant":
         let
@@ -308,12 +313,18 @@ router web:
 
         try:
             let id = api.createTenant(name)
-            resp(Http200, $(%*{"msg": "Tenant created", "id": id}),
-                    contentType = "application/json")
-
+            resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+            , $(%*{"msg": "Tenant created", "id": id}))
+            
         except ApiError:
-            resp(Http500, $(%*{"msg": "Error creating tenant"}),
-                    contentType = "application/json")
+            resp(Http500, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+            , $(%*{"msg": "Error creating tenant!"}))        
+
+    # OPTIONS 
+    options "/tenant/@id":
+        cond re.match(@"id", re"^\d+$")
+                
+        resp(Http204, headers={"Access-Control-Allow-Origin": api.corsDomain, "Access-Control-Allow-Methods": "DELETE, PUT", "Access-Control-Allow-Headers": "content-type"}, "")
 
     # DELETE a tenant
     delete "/tenant/@id":
@@ -327,21 +338,17 @@ router web:
 
         try:
             if api.deleteTenant(id):
-                resp(Http200, $(%*{"msg": "Tenant deleted"}),
-                        contentType = "application/json")
+                resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+                , $(%*{"msg": "Tenant deleted"}))
+                
             else:
-                resp(Http404, $(%*{"msg": "Tenant not found"}),
-                        contentType = "application/json")
+                resp(Http404, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+                , $(%*{"msg": "Tenant not found"}))
 
         except ApiError:
-            resp(Http500, $(%*{"msg": "Error deleting tenant"}),
-                    contentType = "application/json")
+            resp(Http500, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+            , $(%*{"msg": "Error deleting tenant"}))
 
-    # OPTIONS 
-    options "/tenant/@id":
-        cond re.match(@"id", re"^\d+$")
-                
-        resp(Http204, headers={"Access-Control-Allow-Origin": api.corsDomain, "Access-Control-Allow-Methods": "PUT", "Access-Control-Allow-Headers": "content-type"}, "")
 
     # PUT update tenant details
     put "/tenant/@id":
@@ -361,8 +368,8 @@ router web:
                 resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
                 , $(%*{"msg": "Tenant updated"}))
             else:
-                resp(Http404, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-                , $(%*{"msg": "Tenant not found or nothing to update"}))
+                resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+                , $(%*{"msg": "No change to tenant"}))
                 
 
         except ApiError:
