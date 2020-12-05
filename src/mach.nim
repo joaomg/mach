@@ -242,6 +242,11 @@ proc isOriginValid*(api: Api, headers: HttpHeaders): bool =
     # if we reach this point the origin is not valid
     return false
 
+proc getJsonHeaders*(api: Api): any =
+    # Return default JSON headers
+
+    return {"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
+
 var api: Api
 
 router web:    
@@ -255,12 +260,10 @@ router web:
         
         try:
             let tenants = api.getTenants()
-            resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-            , $(%*tenants))
+            resp(Http200, headers=api.getJsonHeaders(), $(%*tenants))
 
         except ApiError as e:
-            resp(Http404, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-            , $(%*{"msg": e.msg}))
+            resp(Http404, headers=api.getJsonHeaders(), $(%*{"msg": e.msg}))
 
     # GET return tenant
     get "/tenant/@id":
@@ -272,12 +275,10 @@ router web:
 
         try:
             let tenant = api.getTenant(uint16(@"id".parseUInt))
-            resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-            , $(%*tenant))
+            resp(Http200, headers=api.getJsonHeaders(), $(%*tenant))
 
         except ApiError as e:
-            resp(Http404, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-            , $(%*{"msg": e.msg}))
+            resp(Http404, headers=api.getJsonHeaders(), $(%*{"msg": e.msg}))
         
     # GET return tenant
     get "/tenant/@name":
@@ -289,12 +290,10 @@ router web:
 
         try:
             let tenant = api.getTenant(@"name")
-            resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-            , $(%*tenant))
+            resp(Http200, headers=api.getJsonHeaders(), $(%*tenant))
 
         except ApiError as e:
-            resp(Http404, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-            , $(%*{"msg": e.msg}))
+            resp(Http404, headers=api.getJsonHeaders(), $(%*{"msg": e.msg}))
 
    # OPTIONS 
     options "/tenant":
@@ -308,46 +307,47 @@ router web:
             name: string = payload["name"].getStr
 
         if not(api.isOriginValid(request.headers)):
-            resp(Http403, headers={"Content-Type": "application/json"}
-            , $(%*{"msg": "Invalid origin!"}))
+            resp(Http403, headers={"Content-Type": "application/json"}, $(%*{"msg": "Invalid origin!"}))
 
         try:
             let id = api.createTenant(name)
-            resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-            , $(%*{"msg": "Tenant created", "id": id}))
+            resp(Http200, headers=api.getJsonHeaders(), $(%*{"msg": "Tenant created", "id": id}))
             
         except ApiError:
-            resp(Http500, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-            , $(%*{"msg": "Error creating tenant!"}))        
+            resp(Http500, headers=api.getJsonHeaders(), $(%*{"msg": "Error creating tenant!"}))        
 
     # OPTIONS 
-    options "/tenant/@id":
+    options "/tenant/@id/@name?":
         cond re.match(@"id", re"^\d+$")
                 
         resp(Http204, headers={"Access-Control-Allow-Origin": api.corsDomain, "Access-Control-Allow-Methods": "DELETE, PUT", "Access-Control-Allow-Headers": "content-type"}, "")
 
     # DELETE a tenant
-    delete "/tenant/@id":
-        cond re.match(@"id", re"^\d+$")
+    delete "/tenant/@id/@name":
+        cond re.match(@"id", re"^\d+$") and re.match(@"name", re"^\S+$")
 
         if not(api.isOriginValid(request.headers)):
-            resp(Http403, headers={"Content-Type": "application/json"}
-            , $(%*{"msg": "Invalid origin!"}))
+            resp(Http403, headers={"Content-Type": "application/json"}, $(%*{"msg": "Invalid origin!"}))
 
-        let id: uint = @"id".parseUInt
+        # get tenant and check the name matches
+        let id: uint16 = uint16(@"id".parseUInt)
+        try:
+            let tenant = api.getTenant(id)
+            if tenant.name != @"name":
+                resp(Http500, headers=api.getJsonHeaders(), $(%*{"msg": "Error, name doesn't match tenant"}))
+
+        except ApiError as e:
+            resp(Http404, headers=api.getJsonHeaders(), $(%*{"msg": e.msg}))
 
         try:
             if api.deleteTenant(id):
-                resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-                , $(%*{"msg": "Tenant deleted"}))
+                resp(Http200, headers=api.getJsonHeaders(), $(%*{"msg": "Tenant deleted"}))
                 
             else:
-                resp(Http404, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-                , $(%*{"msg": "Tenant not found"}))
+                resp(Http404, headers=api.getJsonHeaders(), $(%*{"msg": "Tenant not found"}))
 
         except ApiError:
-            resp(Http500, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-            , $(%*{"msg": "Error deleting tenant"}))
+            resp(Http500, headers=api.getJsonHeaders(), $(%*{"msg": "Error deleting tenant"}))
 
 
     # PUT update tenant details
@@ -365,18 +365,13 @@ router web:
 
         try:
             if api.updateTenant(id, name):
-                resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-                , $(%*{"msg": "Tenant updated"}))
+                resp(Http200, headers=api.getJsonHeaders(), $(%*{"msg": "Tenant updated"}))
             else:
-                resp(Http200, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-                , $(%*{"msg": "No change to tenant"}))
+                resp(Http200, headers=api.getJsonHeaders(), $(%*{"msg": "No change to tenant"}))
                 
 
         except ApiError:
-            resp(Http500, $(%*{"msg": "Error updating tenant"})
-            , contentType = "application/json")
-            resp(Http500, headers={"Access-Control-Allow-Origin": api.corsDomain, "Content-Type": "application/json"}
-                , $(%*{"msg": "Error updating tenant"}))
+            resp(Http500, headers=api.getJsonHeaders(), $(%*{"msg": "Error updating tenant"}))
 
     # UPLOAD file to tenant
     post "/tenant/@name/upload":

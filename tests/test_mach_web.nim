@@ -142,6 +142,39 @@ proc testTenant(useStdLib: bool) =
   }
 ]"""
 
+    test "delete tenant Hobbes":      
+      let resp = waitFor client.delete(address & "/tenant/6/Hobbes")
+      check resp.code == Http200
+      let data = (waitFor resp.body).parseJson
+      check data["msg"].getStr == "Tenant deleted"
+
+    test "we have three tenants":      
+      let resp = waitFor client.get(address & "/tenant")
+      check resp.code == Http200
+      let data = (waitFor resp.body).parseJson
+      check data.len == 3
+
+      check pretty(data) == """[
+  {
+    "id": 3,
+    "name": "Tom",
+    "hash": "6ef4e23ae042e266714df9e60a5c49414b96a45267577ef2c0b1b1ec811185cd",
+    "hashShort": ""
+  },
+  {
+    "id": 4,
+    "name": "Jerry",
+    "hash": "34e977b29a5ea97f4d05b08842c38fbda2b60b5a288ce876e8ec0f204604ee2e",
+    "hashShort": ""
+  },
+  {
+    "id": 5,
+    "name": "Calvin",
+    "hash": "d03b620caaca8b7867ba9a630f8decc411bf90e69b62d6309210d090b2405981",
+    "hashShort": ""
+  }
+]"""
+
 when isMainModule:
   try:
     # testTenant(useStdLib=false) # with useStdLib=false doesn't work
